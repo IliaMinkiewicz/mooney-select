@@ -42,6 +42,7 @@
           <button type="button" data-v="на замену" aria-pressed="false">на замену</button>
           <button type="button" data-v="взят" aria-pressed="false">взяты</button>
           <button type="button" data-v="отклонён" aria-pressed="false">отклонены</button>
+          <button type="button" data-v="новый" aria-pressed="false">новые</button>
         </div>
         <label class="row-l"><span>Порядок</span>
           <select id="o-sort">
@@ -110,6 +111,13 @@
           <label><input type="checkbox" value="sa"> CC BY-SA</label>
         </fieldset>
         <button class="btn accent" type="submit">Найти</button>
+        <div class="s-new" id="s-new" hidden>
+          <label class="row-l"><span>Новый объект (по-русски)</span><input id="s-new-name" type="text" maxlength="60" placeholder="например, скворечник"></label>
+          <label class="row-l"><span>English</span><input id="s-new-en" type="text" maxlength="60" placeholder="birdhouse"></label>
+          <button class="btn" type="button" id="s-new-ok">Создать объект</button>
+          <button class="btn ghost" type="button" id="s-new-cancel">Отмена</button>
+          <p class="hint">Объект появится в списке отбора с пометкой «новый». Если такой объект уже есть, будет выбран он.</p>
+        </div>
       </form>
       <p class="hint">Найденные фото обрабатываются прямо в браузере и никуда не загружаются. Mooney строится по процедуре Van de Cruys (σ = 2, порог Оцу) с рамкой по центру; в редакторе рамку и настройки можно изменить. Кадр, добавленный к объекту, появится в отборе с пометкой «найдено» и попадёт в Excel с автором, лицензией и ссылкой.</p>
       <p class="count" id="s-status"></p>

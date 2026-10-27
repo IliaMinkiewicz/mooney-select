@@ -18,7 +18,7 @@ const SOURCES = ["Open Images", "Megalith", "THINGS-Mooney", "Pexels", "Van de C
 let CAT = null;
 const OBJ = new Map(), FRK = new Map();
 let FR = [];
-let DEC = LS.get("ms.dec", {}), FOUND = LS.get("ms.found", []), OTHER = LS.get("ms.other", {});
+let DEC = LS.get("ms.dec", {}), FOUND = LS.get("ms.found", []), OTHER = LS.get("ms.other", {}), NEWOBJ = LS.get("ms.newobj", []);
 const UI = Object.assign({ obj: "", st: "all", sort: "name", src: [], prev: "all", mine: "all", show: "m", ts: 210, q: "" }, LS.get("ms.ui", {}));
 const LOCAL = new Map();
 let VISIBLE = [];
@@ -180,6 +180,7 @@ async function init() {
     return;
   }
   for (const o of CAT.objects) OBJ.set(o.id, o);
+  for (const o of NEWOBJ) if (!OBJ.has(o.id)) { CAT.objects.push(o); OBJ.set(o.id, o); }
   FR = CAT.frames.slice();
   for (const f of FOUND) if (OBJ.has(f.o)) FR.push(f);
   for (const f of FR) FRK.set(f.k, f);
@@ -193,6 +194,25 @@ function addFound(f) {
   FR.push(f); FRK.set(f.k, f);
   buildSrcChips();
   return f;
+}
+const normName = s => String(s || "").toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ").trim();
+function createObject(name, en) {
+  name = String(name || "").toLowerCase().replace(/\s+/g, " ").trim();
+  if (!name) return null;
+  const id = normName(name);
+  const ex = CAT.objects.find(o => o.id === id || normName(o.name) === id);
+  if (ex) return { o: ex, existed: true };
+  const o = { id, name, en: String(en || "").trim(), st: "новый", zam: "", res: 0, dup: CAT.base.find(b => normName(b) === id) || "", fresh: 1 };
+  NEWOBJ.push(o); LS.set("ms.newobj", NEWOBJ);
+  CAT.objects.push(o); OBJ.set(id, o);
+  return { o, existed: false };
+}
+function deleteObject(id) {
+  for (const f of FR.filter(f => f.o === id && f.found)) removeFound(f.k);
+  NEWOBJ = NEWOBJ.filter(o => o.id !== id); LS.set("ms.newobj", NEWOBJ);
+  CAT.objects = CAT.objects.filter(o => o.id !== id); OBJ.delete(id);
+  if (UI.obj === id) { UI.obj = ""; saveUI(); }
+  fillSearchObjects();
 }
 function removeFound(k) {
   FOUND = FOUND.filter(f => f.k !== k); LS.set("ms.found", FOUND);
@@ -232,7 +252,7 @@ function renderObjs() {
   const total = FR.length;
   const html = [`<li><button type="button" data-o="" aria-current="${UI.obj === ""}"><span></span><span class="nm all">Все объекты</span><span class="n">${total}</span></button></li>`];
   for (const { o, c } of list) {
-    const dot = c.yes ? "ok" : o.st === "отклонён" ? "rej" : c.q ? "q" : o.st === "на замену" ? "open" : "";
+    const dot = c.yes ? "ok" : o.st === "отклонён" ? "rej" : c.q ? "q" : o.st === "на замену" || o.fresh ? "open" : "";
     html.push(`<li><button type="button" data-o="${esc(o.id)}" aria-current="${UI.obj === o.id}" title="${esc(o.name)}: кандидатов ${c.n}, берём ${c.yes}${c.q ? ", под вопросом " + c.q : ""}">` +
       `<span class="dot ${dot}"></span><span class="nm">${esc(o.name)}</span><span class="n">${c.n}${c.yes ? " · ✓" + c.yes : ""}</span></button></li>`);
   }
@@ -273,15 +293,21 @@ function renderHead() {
     return;
   }
   const o = OBJ.get(UI.obj), c = objCounts(o);
-  const st = { "взят": ["ok", "взят на обсуждении"], "на замену": ["q", "на замену"], "отклонён": ["no", "отклонён на обсуждении"] }[o.st] || ["", o.st];
+  const st = { "взят": ["ok", "взят на обсуждении"], "на замену": ["q", "на замену"], "отклонён": ["no", "отклонён на обсуждении"], "новый": ["prev", "новый объект"] }[o.st] || ["", o.st];
   const notes = [`<span class="pill ${st[0]}">${st[1]}</span>`];
   notes.push(c.yes ? `<span class="pill ok">берём: ${c.yes}</span>` : `<span class="pill">кадр не выбран</span>`);
   if (o.zam) notes.push(`<span class="pill q" title="Помета обсуждения и замечания">помета: ${esc(o.zam)}</span>`);
   if (o.dup) notes.push(`<span class="pill no">в исходной базе есть «${esc(o.dup)}»</span>`);
   if (o.res) notes.push(`<span class="pill">ещё ${o.res} кадров Megalith ждут подготовки</span>`);
   el.innerHTML = `<h1>${esc(o.name)}</h1><span class="en">${esc(o.en)}</span>` +
-    `<button type="button" class="btn ghost" id="b-find-obj">Искать фото</button><div class="notes">${notes.join("")}</div>`;
-  $("b-find-obj").onclick = () => { $("s-obj").value = o.id; $("s-q").value = o.en; location.hash = "#poisk"; };
+    `<button type="button" class="btn ghost" id="b-find-obj">Искать фото</button>` +
+    (o.fresh ? `<button type="button" class="btn ghost" id="b-del-obj">Удалить объект</button>` : "") + `<div class="notes">${notes.join("")}</div>`;
+  $("b-find-obj").onclick = () => { $("s-obj").value = o.id; $("s-q").value = o.en || $("s-q").value; $("s-new").hidden = true; updateAddLabels(); location.hash = "#poisk"; };
+  if (o.fresh) $("b-del-obj").onclick = () => {
+    const n = FR.filter(f => f.o === o.id).length;
+    if (!confirm(`Удалить объект «${o.name}»` + (n ? ` и найденные для него кадры (${n})?` : "?"))) return;
+    deleteObject(o.id); renderObjs(); renderGrid(); toast(`Объект «${o.name}» удалён`);
+  };
 }
 function tileHTML(f) {
   const d = mine(f), e = eff(f), show = UI.show;
@@ -333,7 +359,9 @@ function renderGrid() {
     parts.push(tileHTML(f));
   }
   const grid = $("grid");
-  grid.innerHTML = parts.join("") || `<p class="empty">Под эти условия кадров нет.</p>`;
+  grid.innerHTML = parts.join("") || (UI.obj && OBJ.get(UI.obj)?.fresh && !FR.some(f => f.o === UI.obj)
+    ? `<p class="empty">Кадров пока нет. Найдите фото на вкладке «Поиск фото» и добавьте их к этому объекту.</p>`
+    : `<p class="empty">Под эти условия кадров нет.</p>`);
   grid.querySelectorAll('.pics[data-render="1"]').forEach(el => io.observe(el));
   const yes = VISIBLE.filter(f => eff(f) === "да").length;
   $("count").textContent = `Показано кадров: ${VISIBLE.length}` + (yes ? ` · берём: ${yes}` : "");
@@ -503,12 +531,19 @@ function download(blob, name) {
 // ---------- поиск ----------
 const SR = { prov: "wm", q: "", page: 0, items: [] };
 function fillSearchObjects() {
-  $("s-obj").innerHTML = CAT.objects.slice().sort((a, b) => ru(a.name, b.name))
-    .map(o => `<option value="${esc(o.id)}">${esc(o.name)}${o.st === "на замену" ? " · на замену" : ""}</option>`).join("");
+  const cur = $("s-obj").value;
+  $("s-obj").innerHTML = `<option value="__new">+ новый объект…</option>` + CAT.objects.slice().sort((a, b) => ru(a.name, b.name))
+    .map(o => `<option value="${esc(o.id)}">${esc(o.name)}${o.st === "на замену" ? " · на замену" : o.fresh ? " · новый" : ""}</option>`).join("");
+  if (cur && OBJ.has(cur)) $("s-obj").value = cur;
+}
+function updateAddLabels() {
+  const o = OBJ.get($("s-obj").value);
+  document.querySelectorAll('#s-grid [data-act="add"]:not(:disabled)').forEach(b => { b.textContent = o ? `Добавить к «${o.name}»` : "Добавить"; });
 }
 function prefillSearch() {
   const o = OBJ.get(UI.obj) || CAT.objects.find(x => x.st === "на замену");
   if (o) { $("s-obj").value = o.id; $("s-q").value = o.en; }
+  updateAddLabels();
 }
 function licClass(l) {
   const s = String(l || "").toLowerCase();
@@ -567,6 +602,7 @@ async function doSearch(more) {
   grid.querySelectorAll(".pics[data-sk]").forEach(el => { if (!el.dataset.q) { el.dataset.q = 1; sio.observe(el); } });
   $("s-status").textContent = SR.items.length ? `Найдено с подходящей лицензией: ${SR.items.length}` : "Ничего не найдено. Попробуйте другое слово или другой источник.";
   $("s-more").hidden = !hasMore;
+  updateAddLabels();
 }
 const squeue = [];
 let sbusy = false;
@@ -611,6 +647,7 @@ function computeStats() {
     objs, covered: covered.length,
     coveredPrev: covered.filter(x => x.o.st === "взят").length,
     coveredNew: covered.filter(x => x.o.st !== "взят").length,
+    coveredFresh: covered.filter(x => x.o.fresh).length, fresh: objs.filter(x => x.o.fresh).length,
     qOnly: objs.filter(x => !x.c.yes && x.c.q).length,
     repl: repl.length, replYes: repl.filter(x => x.c.yes).length, replQ: repl.filter(x => !x.c.yes && x.c.q).length,
     replOpen: repl.filter(x => !x.c.yes && !x.c.q && x.c.open).length,
@@ -642,7 +679,7 @@ function renderStats() {
     <div class="big">${S.covered} <small>из цели ${g1}–${g2}</small></div>
     <div class="goal"><div class="fill q" style="width:${((S.covered + S.qOnly) / max) * 100}%"></div><div class="fill" style="width:${(S.covered / max) * 100}%"></div>
       <div class="tick" style="left:${(g1 / max) * 100}%"><span>${g1}</span></div><div class="tick" style="left:${(g2 / max) * 100}%"><span>${g2}</span></div></div>
-    <dl class="kv"><dt>взяты на обсуждении</dt><dd>${S.coveredPrev}</dd><dt>добавлены сейчас</dt><dd>${S.coveredNew}</dd><dt>ещё под вопросом</dt><dd>${S.qOnly}</dd><dt>не хватает до ${g1}</dt><dd>${Math.max(0, g1 - S.covered)}</dd></dl>
+    <dl class="kv"><dt>взяты на обсуждении</dt><dd>${S.coveredPrev}</dd><dt>добавлены сейчас</dt><dd>${S.coveredNew}</dd>${S.fresh ? `<dt>из них новые объекты (созданы на сайте)</dt><dd>${S.coveredFresh} из ${S.fresh}</dd>` : ""}<dt>ещё под вопросом</dt><dd>${S.qOnly}</dd><dt>не хватает до ${g1}</dt><dd>${Math.max(0, g1 - S.covered)}</dd></dl>
   </section>
   <section class="card"><h2>Объекты на замену: ${S.repl}</h2>
     <dl class="kv"><dt>выбран кадр</dt><dd>${S.replYes}</dd><dt>под вопросом</dt><dd>${S.replQ}</dd><dt>есть кадры без решения</dt><dd>${S.replOpen}</dd><dt>кандидатов здесь нет</dt><dd>${S.replNone}</dd><dt>из них с запасом Megalith на втором компьютере</dt><dd>${S.replReserve}</dd></dl>
@@ -705,7 +742,7 @@ async function exportExcel(what, withImg) {
     let r = null;
     try { r = await renderFrame(f, p); } catch { r = null; }
     const thrTxt = r ? (p.thr.m === "otsu" ? `Оцу: ${r.threshold}` : p.thr.m === "white" ? `белого ${pct(p.thr.v)}: ${r.threshold}` : `вручную: ${r.threshold}`) : "";
-    const pj = { ...p, ...(f.found ? { found: { o: f.o, src: f.src, lic: f.lic, au: f.au, pg: f.pg, url: f.url, title: f.title } } : {}) };
+    const pj = { ...p, ...(f.found ? { found: { o: f.o, objName: OBJ.get(f.o).name, objEn: OBJ.get(f.o).en, src: f.src, lic: f.lic, au: f.au, pg: f.pg, url: f.url, title: f.title } } : {}) };
     const row = ws.addRow({
       n: i + 1, o: OBJ.get(f.o).name, d: d ? DL[d] : eff(f) === "да" ? "взят ранее" : "", c: DEC[f.k]?.c || "",
       ps: f.prev?.s || (f.found ? "найдено" : ""), pn: f.prev?.n || "", pd: f.prev?.d || "", pr: [f.prev?.r, f.prev?.c].filter(Boolean).join("; "),
@@ -755,14 +792,14 @@ async function exportExcel(what, withImg) {
 }
 function exportJSON() {
   const who = $("who").value.trim();
-  const blob = new Blob([JSON.stringify({ who, dec: DEC, found: FOUND, date: new Date().toISOString() }, null, 1)], { type: "application/json" });
+  const blob = new Blob([JSON.stringify({ who, dec: DEC, found: FOUND, newobj: NEWOBJ, date: new Date().toISOString() }, null, 1)], { type: "application/json" });
   download(blob, `Mooney_решения_${who || "без имени"}_${new Date().toISOString().slice(0, 10)}.json`);
 }
 async function importFile(file) {
-  let who = "", dec = {}, found = [];
+  let who = "", dec = {}, found = [], newobj = [];
   try {
     if (/\.json$/i.test(file.name)) {
-      const d = JSON.parse(await file.text()); who = d.who || ""; dec = d.dec || {}; found = d.found || [];
+      const d = JSON.parse(await file.text()); who = d.who || ""; dec = d.dec || {}; found = d.found || []; newobj = d.newobj || [];
     } else {
       await excelReady();
       const wb = new ExcelJS.Workbook(); await wb.xlsx.load(await file.arrayBuffer());
@@ -782,17 +819,23 @@ async function importFile(file) {
     }
   } catch (e) { toast("Не удалось прочитать файл: " + e.message, 6000); return; }
   who = who || file.name.replace(/\.[^.]+$/, "");
-  let nf = 0;
-  for (const f of found) if (!FRK.has(f.k) && OBJ.has(f.o)) { addFound(f); nf++; }
+  let nf = 0, no = 0;
+  for (const o of newobj) { const r = createObject(o.name, o.en); if (r && !r.existed) no++; }
+  for (const f of found) {
+    if (!OBJ.has(f.o) && f.objName) { const r = createObject(f.objName, f.objEn); if (r) { if (!r.existed) no++; f.o = r.o.id; } }
+    delete f.objName; delete f.objEn;
+    if (!FRK.has(f.k) && OBJ.has(f.o)) { addFound(f); nf++; }
+  }
+  if (no) fillSearchObjects();
   const me = $("who").value.trim();
   const n = Object.values(dec).filter(x => x.d).length;
   if (me && who === me) {
     for (const [k, x] of Object.entries(dec)) if (FRK.has(k) && !DEC[k]?.d) DEC[k] = { ...DEC[k], ...x };
-    saveDec(); toast(`Восстановлены мои решения из файла: ${n}` + (nf ? `, найденных кадров: ${nf}` : ""));
+    saveDec(); toast(`Восстановлены мои решения из файла: ${n}` + (nf ? `, найденных кадров: ${nf}` : "") + (no ? `, новых объектов: ${no}` : ""));
   } else {
     OTHER[who] = Object.fromEntries(Object.entries(dec).filter(([, x]) => x.d).map(([k, x]) => [k, { d: x.d, c: x.c || "" }]));
     LS.set("ms.other", OTHER);
-    toast(`Загружены решения «${who}»: ${n}` + (nf ? `, найденных кадров: ${nf}` : "") + ". Они показаны на плитках рядом с вашими.", 6000);
+    toast(`Загружены решения «${who}»: ${n}` + (nf ? `, найденных кадров: ${nf}` : "") + (no ? `, новых объектов: ${no}` : "") + ". Они показаны на плитках рядом с вашими.", 6000);
   }
   route();
 }
@@ -886,11 +929,28 @@ function bindUI() {
   // поиск
   $("s-form").onsubmit = e => { e.preventDefault(); doSearch(false); };
   $("s-more").onclick = () => doSearch(true);
-  $("s-obj").onchange = () => { const o = OBJ.get($("s-obj").value); if (o) $("s-q").value = o.en; };
+  $("s-obj").onchange = () => {
+    const v = $("s-obj").value, o = OBJ.get(v);
+    $("s-new").hidden = v !== "__new";
+    if (v === "__new") { $("s-new-name").value = ""; $("s-new-en").value = ""; $("s-new-name").focus(); }
+    if (o?.en) $("s-q").value = o.en;
+    updateAddLabels();
+  };
+  $("s-new-ok").onclick = () => {
+    const r = createObject($("s-new-name").value, $("s-new-en").value);
+    if (!r) { toast("Введите название объекта"); $("s-new-name").focus(); return; }
+    fillSearchObjects(); $("s-obj").value = r.o.id; $("s-new").hidden = true;
+    if (r.o.en) $("s-q").value = r.o.en;
+    updateAddLabels();
+    toast(r.existed ? `Объект «${r.o.name}» уже есть, выбран он` : `Создан объект «${r.o.name}»` + (r.o.dup ? `. В исходной базе есть «${r.o.dup}»` : ""), 5000);
+  };
+  $("s-new-name").onkeydown = $("s-new-en").onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); $("s-new-ok").click(); } };
+  $("s-new-cancel").onclick = () => { $("s-new").hidden = true; prefillSearch(); };
   $("s-grid").onclick = e => {
     const b = e.target.closest("button[data-act]"); if (!b) return;
     const k = b.closest(".tile").dataset.k, x = SR.items.find(i => i.k === k); if (!x) return;
     const oid = $("s-obj").value;
+    if (!FRK.has(k) && !OBJ.has(oid)) { toast("Сначала создайте объект или выберите существующий"); return; }
     const f = FRK.get(k) || addFound(foundFrom(x, oid));
     b.closest(".tile").querySelector('[data-act="add"]').disabled = true;
     b.closest(".tile").querySelector('[data-act="add"]').textContent = "Добавлен";

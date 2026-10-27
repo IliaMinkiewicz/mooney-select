@@ -140,6 +140,8 @@ main { min-height: 70vh; }
 .search-wrap { padding-block: 16px; display: flex; flex-direction: column; gap: 12px; max-width: 1400px; }
 .s-form { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end; padding: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
 .s-form .grow { flex: 1 1 240px; }
+.s-new { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; padding-top: 12px; border-top: 1px dashed var(--line); }
+.s-new .hint { flex-basis: 100%; }
 .lic { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12.5px; }
 .lic legend { color: var(--muted); font-size: 12px; padding: 0; margin-bottom: 3px; }
 .s-card .meta a { color: var(--muted); }
