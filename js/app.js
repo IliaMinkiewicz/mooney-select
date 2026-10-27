@@ -11,9 +11,9 @@ const ru = (a, b) => a.localeCompare(b, "ru");
 
 const DL = { "да": "берём", "?": "под вопросом", "нет": "нет" };
 const DL_BACK = { "берём": "да", "под вопросом": "?", "нет": "нет", "да": "да", "?": "?" };
-const PREV_CLS = { "взят": "ok", "на замену": "q", "отклонён": "no", "не выбран": "" };
+const PREV_CLS = { "взят": "ok", "на замену": "q", "отклонён": "no", "не выбран": "", "новый": "prev" };
 const FORMATS = ["350x250", "250x350", "350x350"];
-const SOURCES = ["Open Images", "Megalith", "THINGS-Mooney", "Pexels", "Van de Cruys", "Wikimedia Commons", "Openverse"];
+const SOURCES = ["Open Images", "Megalith", "THINGS-Mooney", "Pexels", "Pixabay", "источник не указан", "Van de Cruys", "Wikimedia Commons", "Openverse"];
 
 let CAT = null;
 const OBJ = new Map(), FRK = new Map();
@@ -39,8 +39,10 @@ function eff(f) {
   if (f.prev?.s === "отклонён") return "нет";
   return null;
 }
-function unseen(f) { return !f.prev && !f.gd && !mine(f) && !f.found; }
-function isOpen(f) { return !eff(f) && !f.prev && !f.gd; }
+// кадр «новый» в сводной ещё не обсуждался и считается нерассмотренным кандидатом
+const undiscussed = f => !f.prev || f.prev.s === "новый";
+function unseen(f) { return undiscussed(f) && !f.gd && !mine(f) && !f.found; }
+function isOpen(f) { return !eff(f) && undiscussed(f) && !f.gd; }
 function localFor(f, kind) {
   if (!f.loc) return null;
   const s = String(f.loc).toLowerCase();
@@ -298,7 +300,7 @@ function renderHead() {
   notes.push(c.yes ? `<span class="pill ok">берём: ${c.yes}</span>` : `<span class="pill">кадр не выбран</span>`);
   if (o.zam) notes.push(`<span class="pill q" title="Помета обсуждения и замечания">помета: ${esc(o.zam)}</span>`);
   if (o.dup) notes.push(`<span class="pill no">в исходной базе есть «${esc(o.dup)}»</span>`);
-  if (o.res) notes.push(`<span class="pill">ещё ${o.res} кадров Megalith ждут подготовки</span>`);
+  if (o.res) notes.push(`<span class="pill" title="Кадры из пулов, для которых на этом компьютере нет картинок">ещё ${o.res} кадров из пулов без картинок</span>`);
   el.innerHTML = `<h1>${esc(o.name)}</h1><span class="en">${esc(o.en)}</span>` +
     `<button type="button" class="btn ghost" id="b-find-obj">Искать фото</button>` +
     (o.fresh ? `<button type="button" class="btn ghost" id="b-del-obj">Удалить объект</button>` : "") + `<div class="notes">${notes.join("")}</div>`;
@@ -319,7 +321,7 @@ function tileHTML(f) {
   if (f.gd) marks.push(`<span class="pill ${f.gd === "взять" ? "prev" : ""}" title="${esc(f.gc)}">галерея: ${f.gd === "взять" ? "взять" : "нет"}</span>`);
   if (/^порция 7/.test(f.why || "")) marks.push(`<span class="pill">порция 7</span>`);
   if (f.found) marks.push(`<span class="pill prev">найдено</span>`);
-  if (unseen(f)) marks.push(`<span class="pill">новый</span>`);
+  if (unseen(f) && !f.prev) marks.push(`<span class="pill">новый</span>`);
   for (const [who, o] of Object.entries(OTHER)) if (o[f.k]?.d) marks.push(`<span class="pill ${o[f.k].d !== e ? "no" : ""}" title="${esc(o[f.k].c || "")}">${esc(who)}: ${DL[o[f.k].d]}</span>`);
   const ed = edited(f), two = show === "mg";
   let pics;
@@ -959,8 +961,8 @@ function bindUI() {
   };
 
   // файлы
-  $("b-local").onclick = () => $("f-local").click();
-  $("f-local").onchange = e => {
+  if ($("b-local")) $("b-local").onclick = () => $("f-local").click();
+  if ($("f-local")) $("f-local").onchange = e => {
     let n = 0;
     for (const file of e.target.files) {
       if (!/\.(jpe?g|png)$/i.test(file.name)) continue;

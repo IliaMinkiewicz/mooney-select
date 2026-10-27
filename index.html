@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="css/style.css?v=2">
+<link rel="stylesheet" href="css/style.css?v=3">
 </head>
 <body>
 <header class="top">
@@ -23,10 +23,8 @@
   </nav>
   <div class="tools">
     <label class="who"><span>Отбирает</span><input id="who" type="text" placeholder="ваше имя" autocomplete="name" maxlength="40"></label>
-    <button type="button" class="btn ghost" id="b-local" title="Открыть папку с кадрами Pexels и Van de Cruys на этом компьютере">Кадры с диска</button>
     <button type="button" class="btn ghost" id="b-import" title="Загрузить файл решений: Excel, выгруженный с этого сайта, или JSON">Загрузить решения</button>
     <button type="button" class="btn accent" id="b-excel">Выгрузить в Excel</button>
-    <input type="file" id="f-local" webkitdirectory multiple hidden>
     <input type="file" id="f-import" accept=".xlsx,.json" hidden>
   </div>
 </header>
@@ -65,6 +63,7 @@
             <option value="на замену">на замену</option>
             <option value="отклонён">отклонены на обсуждении</option>
             <option value="не выбран">не выбраны</option>
+            <option value="новый">новые от коллеги (не обсуждались)</option>
             <option value="g-yes">в галерее: взять</option>
             <option value="g-no">в галерее: отклонить</option>
             <option value="new">ещё не просмотрены</option>
@@ -133,7 +132,7 @@
 </main>
 
 <footer class="foot">
-  <p>Источники: Open Images V7 (CC BY 2.0), Megalith-10m (CC0 и PDM), THINGS-Mooney на изображениях THINGSplus (без ограничений), Wikimedia Commons и Openverse (по лицензии кадра). Кадры Pexels и Van de Cruys et al. (2021) на сайте не публикуются: их можно открыть из папки на своём компьютере кнопкой «Кадры с диска».</p>
+  <p>Источники: Open Images V7 (CC BY 2.0), Megalith-10m (CC0 и PDM), THINGS-Mooney на изображениях THINGSplus, Van de Cruys et al. (2021), кадры коллеги с Pexels и Pixabay, Wikimedia Commons и Openverse. Автор, лицензия и ссылка на исходное фото указаны в карточке каждого кадра. Изображения используются только для отбора стимулов в научном исследовании.</p>
   <p>Решения хранятся только в этом браузере. Чтобы передать их, выгрузите Excel; присланный файл загружается кнопкой «Загрузить решения».</p>
 </footer>
 
@@ -233,7 +232,7 @@
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js" defer></script>
-<script src="js/mooney.js?v=2"></script>
-<script src="js/app.js?v=2"></script>
+<script src="js/mooney.js?v=3"></script>
+<script src="js/app.js?v=3"></script>
 </body>
 </html>
