@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Mooney: отбор добора</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <span class="logo" aria-hidden="true"><i></i><i></i></span>
+    <span><b>Mooney</b> отбор добора</span>
+  </div>
+  <nav class="tabs" aria-label="Разделы">
+    <a href="#otbor" data-tab="otbor">Отбор</a>
+    <a href="#poisk" data-tab="poisk">Поиск фото</a>
+    <a href="#stat" data-tab="stat">Статистика</a>
+  </nav>
+  <div class="tools">
+    <label class="who"><span>Отбирает</span><input id="who" type="text" placeholder="ваше имя" autocomplete="name" maxlength="40"></label>
+    <button type="button" class="btn ghost" id="b-local" title="Открыть папку с кадрами Pexels и Van de Cruys на этом компьютере">Кадры с диска</button>
+    <button type="button" class="btn ghost" id="b-import" title="Загрузить файл решений: Excel, выгруженный с этого сайта, или JSON">Загрузить решения</button>
+    <button type="button" class="btn accent" id="b-excel">Выгрузить в Excel</button>
+    <input type="file" id="f-local" webkitdirectory multiple hidden>
+    <input type="file" id="f-import" accept=".xlsx,.json" hidden>
+  </div>
+</header>
+
+<main>
+  <!-- Отбор -->
+  <section id="v-otbor" class="view">
+    <aside class="side">
+      <div class="side-head">
+        <input id="q-obj" type="search" placeholder="Найти объект" aria-label="Найти объект">
+        <div class="chips" id="st-chips" role="group" aria-label="Статус объекта">
+          <button type="button" data-v="all" aria-pressed="true">все</button>
+          <button type="button" data-v="на замену" aria-pressed="false">на замену</button>
+          <button type="button" data-v="взят" aria-pressed="false">взяты</button>
+          <button type="button" data-v="отклонён" aria-pressed="false">отклонены</button>
+        </div>
+        <label class="row-l"><span>Порядок</span>
+          <select id="o-sort">
+            <option value="name">по алфавиту</option>
+            <option value="open">сначала без выбранного кадра</option>
+            <option value="n">по числу кандидатов</option>
+          </select>
+        </label>
+      </div>
+      <ul class="objs" id="objs"></ul>
+    </aside>
+    <div class="work">
+      <div class="obj-head" id="obj-head"></div>
+      <div class="filters">
+        <div class="chips" id="src-chips" role="group" aria-label="Источник"></div>
+        <label class="row-l"><span>Ранее</span>
+          <select id="f-prev">
+            <option value="all">все кадры</option>
+            <option value="взят">взяты на обсуждении</option>
+            <option value="на замену">на замену</option>
+            <option value="отклонён">отклонены на обсуждении</option>
+            <option value="не выбран">не выбраны</option>
+            <option value="g-yes">в галерее: взять</option>
+            <option value="g-no">в галерее: отклонить</option>
+            <option value="new">ещё не просмотрены</option>
+          </select>
+        </label>
+        <label class="row-l"><span>Моё решение</span>
+          <select id="f-mine">
+            <option value="all">любое</option>
+            <option value="none">нет решения</option>
+            <option value="да">берём</option>
+            <option value="?">под вопросом</option>
+            <option value="нет">нет</option>
+            <option value="diff">расходится с другим файлом</option>
+          </select>
+        </label>
+        <div class="seg" id="show" role="group" aria-label="Показ">
+          <button type="button" data-v="m" aria-pressed="true">Mooney</button>
+          <button type="button" data-v="g" aria-pressed="false">серое</button>
+          <button type="button" data-v="mg" aria-pressed="false">оба</button>
+        </div>
+        <label class="row-l size"><span>Размер</span><input id="tile-size" type="range" min="150" max="360" step="10" value="210"></label>
+      </div>
+      <p class="count" id="count"></p>
+      <div class="grid" id="grid"></div>
+    </div>
+  </section>
+
+  <!-- Поиск -->
+  <section id="v-poisk" class="view" hidden>
+    <div class="search-wrap">
+      <form id="s-form" class="s-form">
+        <label class="row-l grow"><span>Запрос (по-английски)</span><input id="s-q" type="search" required placeholder="например, pumpkin"></label>
+        <label class="row-l"><span>Объект</span><select id="s-obj"></select></label>
+        <label class="row-l"><span>Источник</span>
+          <select id="s-prov">
+            <option value="wm">Wikimedia Commons</option>
+            <option value="ov">Openverse</option>
+          </select>
+        </label>
+        <fieldset class="lic">
+          <legend>Лицензии</legend>
+          <label><input type="checkbox" value="pd" checked> CC0 и общественное достояние</label>
+          <label><input type="checkbox" value="by" checked> CC BY</label>
+          <label><input type="checkbox" value="sa"> CC BY-SA</label>
+        </fieldset>
+        <button class="btn accent" type="submit">Найти</button>
+      </form>
+      <p class="hint">Найденные фото обрабатываются прямо в браузере и никуда не загружаются. Mooney строится по процедуре Van de Cruys (σ = 2, порог Оцу) с рамкой по центру; в редакторе рамку и настройки можно изменить. Кадр, добавленный к объекту, появится в отборе с пометкой «найдено» и попадёт в Excel с автором, лицензией и ссылкой.</p>
+      <p class="count" id="s-status"></p>
+      <div class="grid" id="s-grid"></div>
+      <div class="more"><button class="btn ghost" type="button" id="s-more" hidden>Показать ещё</button></div>
+    </div>
+  </section>
+
+  <!-- Статистика -->
+  <section id="v-stat" class="view" hidden>
+    <div class="stat-wrap" id="stat"></div>
+  </section>
+</main>
+
+<footer class="foot">
+  <p>Источники: Open Images V7 (CC BY 2.0), Megalith-10m (CC0 и PDM), THINGS-Mooney на изображениях THINGSplus (без ограничений), Wikimedia Commons и Openverse (по лицензии кадра). Кадры Pexels и Van de Cruys et al. (2021) на сайте не публикуются: их можно открыть из папки на своём компьютере кнопкой «Кадры с диска».</p>
+  <p>Решения хранятся только в этом браузере. Чтобы передать их, выгрузите Excel; присланный файл загружается кнопкой «Загрузить решения».</p>
+</footer>
+
+<!-- Редактор -->
+<div class="ed-back" id="ed" hidden>
+  <div class="ed" role="dialog" aria-modal="true" aria-labelledby="ed-title">
+    <div class="ed-top">
+      <button type="button" class="icon" id="ed-prev" title="Предыдущий кадр (←)" aria-label="Предыдущий кадр">‹</button>
+      <h2 id="ed-title"></h2>
+      <button type="button" class="icon" id="ed-next" title="Следующий кадр (→)" aria-label="Следующий кадр">›</button>
+      <span class="sp"></span>
+      <button type="button" class="icon" id="ed-close" title="Закрыть (Esc)" aria-label="Закрыть">×</button>
+    </div>
+    <div class="ed-body">
+      <div class="ed-left">
+        <div class="seg" id="ed-show" role="group" aria-label="Показ">
+          <button type="button" data-v="m" aria-pressed="true">Mooney</button>
+          <button type="button" data-v="g" aria-pressed="false">серое</button>
+          <button type="button" data-v="o" aria-pressed="false">наложение</button>
+          <button type="button" data-v="s" aria-pressed="false">рядом</button>
+        </div>
+        <div class="stage" id="ed-stage"><canvas id="ed-c1"></canvas><canvas id="ed-c2" hidden></canvas></div>
+        <div class="readout mono" id="ed-read"></div>
+        <div class="photo-box" id="ed-photo-box">
+          <p class="hint" id="ed-photo-hint">Исходное фото: перетащите рамку, колесо мыши меняет её размер.</p>
+          <canvas id="ed-photo" tabindex="0" aria-label="Исходное фото с рамкой кадра"></canvas>
+        </div>
+      </div>
+      <div class="ed-right">
+        <div class="dec-row" id="ed-dec" role="group" aria-label="Решение">
+          <button type="button" data-v="да" class="d-yes">Берём <kbd>1</kbd></button>
+          <button type="button" data-v="?" class="d-q">Под вопросом <kbd>2</kbd></button>
+          <button type="button" data-v="нет" class="d-no">Нет <kbd>3</kbd></button>
+        </div>
+        <textarea id="ed-com" rows="2" placeholder="Комментарий"></textarea>
+
+        <div class="ctl">
+          <span class="lab">Формат</span>
+          <div class="seg" id="ed-fmt" role="group" aria-label="Формат">
+            <button type="button" data-v="350x250" aria-pressed="false">350×250</button>
+            <button type="button" data-v="250x350" aria-pressed="false">250×350</button>
+            <button type="button" data-v="350x350" aria-pressed="false">350×350</button>
+          </div>
+        </div>
+        <div class="ctl" id="ed-size-row"><label class="lab" for="ed-size">Рамка</label><input type="range" id="ed-size" min="15" max="100" step="1"><output class="mono" id="ed-size-v"></output></div>
+        <div class="ctl"><label class="lab" for="ed-sigma">Размытие σ</label><input type="range" id="ed-sigma" min="0" max="8" step="0.1"><output class="mono" id="ed-sigma-v"></output></div>
+        <div class="ctl">
+          <span class="lab">Порог</span>
+          <div class="seg" id="ed-thr" role="group" aria-label="Порог">
+            <button type="button" data-v="otsu" aria-pressed="true">Оцу</button>
+            <button type="button" data-v="white" aria-pressed="false">доля белого</button>
+            <button type="button" data-v="manual" aria-pressed="false">вручную</button>
+          </div>
+        </div>
+        <div class="ctl" id="ed-thrv-row" hidden><label class="lab" for="ed-thrv" id="ed-thrv-l">Значение</label><input type="range" id="ed-thrv"><output class="mono" id="ed-thrv-v"></output></div>
+        <div class="ctl"><label class="lab" for="ed-con">Контраст</label><input type="range" id="ed-con" min="0.5" max="2" step="0.05"><output class="mono" id="ed-con-v"></output></div>
+        <div class="ctl"><label class="lab" for="ed-gam">Гамма</label><input type="range" id="ed-gam" min="0.4" max="2.5" step="0.05"><output class="mono" id="ed-gam-v"></output></div>
+        <div class="ctl"><label class="lab" for="ed-speck">Убрать пятна меньше</label><input type="range" id="ed-speck" min="0" max="300" step="5"><output class="mono" id="ed-speck-v"></output></div>
+        <div class="ctl btns">
+          <button type="button" class="btn ghost" id="ed-rotl" title="Повернуть против часовой стрелки">⟲ 90°</button>
+          <button type="button" class="btn ghost" id="ed-rotr" title="Повернуть по часовой стрелке">⟳ 90°</button>
+          <button type="button" class="btn ghost" id="ed-flip" aria-pressed="false">Отразить</button>
+          <button type="button" class="btn ghost" id="ed-inv" aria-pressed="false">Инверсия</button>
+        </div>
+        <div class="ctl btns">
+          <button type="button" class="btn ghost" id="ed-reset">Сбросить настройки</button>
+          <button type="button" class="btn ghost" id="ed-png-m">PNG Mooney</button>
+          <button type="button" class="btn ghost" id="ed-png-g">PNG серое</button>
+        </div>
+        <dl class="info" id="ed-info"></dl>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Выгрузка в Excel -->
+<div class="ed-back" id="xl" hidden>
+  <form class="dlg" id="xl-form" role="dialog" aria-modal="true" aria-labelledby="xl-title">
+    <h2 id="xl-title">Выгрузка в Excel</h2>
+    <fieldset>
+      <legend>Какие кадры</legend>
+      <label><input type="radio" name="xl-what" value="yes" checked> берём</label>
+      <label><input type="radio" name="xl-what" value="yesq"> берём и под вопросом</label>
+      <label><input type="radio" name="xl-what" value="mine"> все мои решения</label>
+      <label><input type="radio" name="xl-what" value="eff"> итоговый состав: взятые на обсуждении и мои «берём»</label>
+    </fieldset>
+    <label class="chk"><input type="checkbox" id="xl-img" checked> миниатюры серого и Mooney</label>
+    <p class="hint" id="xl-note"></p>
+    <div class="dlg-btns">
+      <button type="button" class="btn ghost" id="xl-cancel">Отмена</button>
+      <button type="button" class="btn ghost" id="xl-json" title="Резервная копия решений и найденных кадров">Копия JSON</button>
+      <button type="submit" class="btn accent" id="xl-go">Выгрузить</button>
+    </div>
+  </form>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js" defer></script>
+<script src="js/mooney.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
