@@ -174,6 +174,18 @@ main { min-height: 70vh; }
 .hist { display: flex; align-items: flex-end; gap: 3px; height: 110px; padding-top: 8px; }
 .hist div { flex: 1; background: var(--ink); border-radius: 3px 3px 0 0; min-height: 1px; position: relative; }
 .hist-x { display: flex; justify-content: space-between; font: 11px var(--mono); color: var(--muted); margin-top: 4px; }
+.goal .tick-lbl { position: absolute; top: 14px; transform: translateX(-50%); font: 11px var(--mono); color: var(--muted); white-space: nowrap; }
+.hist.sm { height: 64px; }
+.hist div.ok, .bar .tr i.ok { background: var(--yes); }
+.hist div.base, .bar .tr i.base, .goal .fill.base { background: var(--prev); }
+.hist-lbl { margin: 12px 0 0; font-size: 12.5px; color: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: -4px 0 12px; font-size: 12.5px; color: var(--muted); }
+.sw { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 2px; background: var(--yes); vertical-align: -1px; }
+.sw.base { background: var(--prev); }
+.bar .pair { display: grid; gap: 3px; }
+.bar.cmp .v { line-height: 13px; }
+img.bthumb { display: block; height: 44px; width: auto; max-width: none; border-radius: 3px; }
+table.t th.num { text-align: right; }
 .tbl-wrap { overflow-x: auto; }
 table.t { border-collapse: collapse; width: 100%; font-size: 13px; }
 table.t th, table.t td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }

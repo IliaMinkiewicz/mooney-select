@@ -176,7 +176,7 @@ async function pump() {
 // ---------- загрузка ----------
 async function init() {
   try {
-    CAT = await (await fetch("data/catalog.json")).json();
+    CAT = await (await fetch("data/catalog.json", { cache: "no-cache" })).json();
   } catch (e) {
     document.querySelector("main").innerHTML = '<p class="empty">Не удалось загрузить каталог кадров.</p>';
     return;
@@ -204,7 +204,7 @@ function createObject(name, en) {
   const id = normName(name);
   const ex = CAT.objects.find(o => o.id === id || normName(o.name) === id);
   if (ex) return { o: ex, existed: true };
-  const o = { id, name, en: String(en || "").trim(), st: "новый", zam: "", res: 0, dup: CAT.base.find(b => normName(b) === id) || "", fresh: 1 };
+  const o = { id, name, en: String(en || "").trim(), st: "новый", zam: "", res: 0, dup: CAT.base.find(b => normName(b.name) === id)?.name || "", fresh: 1 };
   NEWOBJ.push(o); LS.set("ms.newobj", NEWOBJ);
   CAT.objects.push(o); OBJ.set(id, o);
   return { o, existed: false };
@@ -650,6 +650,7 @@ function computeStats() {
     coveredPrev: covered.filter(x => x.o.st === "взят").length,
     coveredNew: covered.filter(x => x.o.st !== "взят").length,
     coveredFresh: covered.filter(x => x.o.fresh).length, fresh: objs.filter(x => x.o.fresh).length,
+    coveredDup: covered.filter(x => x.o.dup).length,
     qOnly: objs.filter(x => !x.c.yes && x.c.q).length,
     repl: repl.length, replYes: repl.filter(x => x.c.yes).length, replQ: repl.filter(x => !x.c.yes && x.c.q).length,
     replOpen: repl.filter(x => !x.c.yes && !x.c.q && x.c.open).length,
@@ -658,17 +659,43 @@ function computeStats() {
     frames: all, unseen: FR.filter(unseen).length, mineN, edited: FR.filter(edited).length, found: FR.filter(f => f.found).length,
   };
 }
+// таблица исходной базы с сортировкой по столбцам
+let BSORT = { k: "name", d: 1 };
+const median = a => { const s = a.slice().sort((x, y) => x - y), m = s.length >> 1; return !s.length ? null : s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+function baseTable() {
+  const near = b => CAT.objects.filter(o => o.dup === b.name);
+  const val = (b, k) => k === "near" ? near(b).length : b[k];
+  const list = CAT.base.slice().sort((a, b) => {
+    const x = val(a, BSORT.k), y = val(b, BSORT.k);
+    if (x == null || y == null) return (x == null) - (y == null) || ru(a.name, b.name);
+    return (typeof x === "string" ? ru(x, y) : x - y) * BSORT.d || ru(a.name, b.name);
+  });
+  const th = (k, t, num) => `<th data-bs="${k}"${num ? ' class="num"' : ""} aria-sort="${BSORT.k !== k ? "none" : BSORT.d > 0 ? "ascending" : "descending"}">${t}${BSORT.k !== k ? "" : BSORT.d > 0 ? " ▲" : " ▼"}</th>`;
+  return `<table class="t"><thead><tr><th>Mooney</th>${th("id", "Стимул")}${th("name", "Название")}${th("nf", "Частота называния", 1)}${th("acc", "Точность, эксп. 1", 1)}${th("aha", "Ага-переживания, эксп. 1", 1)}${th("fmt", "Формат")}${th("wh", "Доля белого", 1)}${th("near", "Близкие новые объекты")}</tr></thead><tbody>${list.map(b => `<tr>
+    <td><a href="img/b/${esc(b.id)}.jpg" target="_blank" rel="noopener" title="Открыть в полном размере"><img class="bthumb" loading="lazy" decoding="async" alt="${esc(b.name)}" src="img/b/${esc(b.id)}.jpg"></a></td>
+    <td class="mono">${esc(b.id)}</td><td>${esc(b.name)}</td><td class="num">${pct(b.nf)}</td><td class="num">${pct(b.acc)}</td><td class="num">${pct(b.aha)}</td>
+    <td class="mono">${esc(b.fmt.replace("x", "×"))}</td><td class="num">${pct(b.wh)}</td>
+    <td>${near(b).map(o => `<button type="button" data-o="${esc(o.id)}">${esc(o.name)}</button> <span class="hint">${esc(o.st)}</span>`).join(", ")}</td></tr>`).join("")}</tbody></table>`;
+}
 function renderStats() {
   if (!CAT) return;
   const S = computeStats(), [g1, g2] = CAT.goal, max = Math.max(g2 + 10, CAT.objects.length);
+  const nb = CAT.base.length, bmax = Math.max(nb + g2 + 10, nb + S.covered);
   const yesF = FR.filter(f => eff(f) === "да");
   const bars = (rows, total) => `<div class="bars">${rows.map(([k, n, y]) => `<div class="bar"><span>${esc(k)}</span><span class="tr"><i class="ok" style="width:${total ? (y / total) * 100 : 0}%"></i><i style="width:${total ? ((n - y) / total) * 100 : 0}%;opacity:.25"></i></span><span class="v">${y === n ? n : y + " / " + n}</span></div>`).join("")}</div>`;
   const bySrc = SOURCES.map(s => [s, FR.filter(f => f.src === s).length, yesF.filter(f => f.src === s).length]).filter(r => r[1]);
   const maxSrc = Math.max(...bySrc.map(r => r[1]));
-  const byFmt = FORMATS.map(f => [f.replace("x", "×"), yesF.filter(x => (DEC[x.k]?.p?.fmt || x.fmt) === f).length]);
-  const wh = yesF.filter(f => f.wh != null && !edited(f)).map(f => f.wh);
-  const bins = Array(16).fill(0); for (const v of wh) bins[Math.min(15, Math.max(0, Math.floor((v - 0.3) / 0.025)))]++;
-  const hb = Math.max(1, ...bins);
+  // база и выбранные кадры: столбцы и гистограммы в долях своей группы
+  const share = (n, t) => t ? (n / t) * 100 : 0;
+  const legend = `<div class="legend"><span><i class="sw base"></i>исходная база, ${nb}</span><span><i class="sw"></i>выбранные кадры, ${yesF.length}</span></div>`;
+  const fmts = [...FORMATS, ...new Set(CAT.base.map(b => b.fmt).filter(f => !FORMATS.includes(f)))];
+  const byFmt = fmts.map(f => [f.replace("x", "×"), CAT.base.filter(b => b.fmt === f).length, yesF.filter(x => (DEC[x.k]?.p?.fmt || x.fmt) === f).length]);
+  const wh = yesF.filter(f => f.wh != null && !edited(f)).map(f => f.wh), bw = CAT.base.map(b => b.wh);
+  const step = 0.05, lo = Math.floor(Math.min(...bw, ...wh) / step) * step, hi = Math.ceil(Math.max(...bw, ...wh) / step) * step;
+  const nbin = Math.max(1, Math.round((hi - lo) / step));
+  const binsOf = a => { const h = Array(nbin).fill(0); for (const v of a) h[Math.min(nbin - 1, Math.max(0, Math.floor((v - lo) / step + 1e-9)))]++; return h.map(n => a.length ? n / a.length : 0); };
+  const hB = binsOf(bw), hN = binsOf(wh), hm = Math.max(1e-9, ...hB, ...hN);
+  const hist = (h, cls, a) => `<div class="hist sm">${h.map((s, i) => `<div class="${cls}" style="height:${(s / hm) * 100}%" title="${Math.round((lo + i * step) * 100)}–${Math.round((lo + (i + 1) * step) * 100)} %: ${Math.round(s * a.length)}"></div>`).join("")}</div>`;
   const others = Object.entries(OTHER).map(([who, o]) => {
     let both = 0, agree = 0;
     for (const [k, x] of Object.entries(o)) { const f = FRK.get(k); if (!f || !x.d) continue; const e = eff(f); if (e) { both++; if (e === x.d) agree++; } }
@@ -683,6 +710,13 @@ function renderStats() {
       <div class="tick" style="left:${(g1 / max) * 100}%"><span>${g1}</span></div><div class="tick" style="left:${(g2 / max) * 100}%"><span>${g2}</span></div></div>
     <dl class="kv"><dt>взяты на обсуждении</dt><dd>${S.coveredPrev}</dd><dt>добавлены сейчас</dt><dd>${S.coveredNew}</dd>${S.fresh ? `<dt>из них новые объекты (созданы на сайте)</dt><dd>${S.coveredFresh} из ${S.fresh}</dd>` : ""}<dt>ещё под вопросом</dt><dd>${S.qOnly}</dd><dt>не хватает до ${g1}</dt><dd>${Math.max(0, g1 - S.covered)}</dd></dl>
   </section>
+  <section class="card"><h2>База после добора</h2>
+    <div class="big">${nb + S.covered} <small>из цели ${nb + g1}–${nb + g2}</small></div>
+    <div class="goal"><div class="fill" style="width:${((nb + S.covered) / bmax) * 100}%"></div><div class="fill base" style="width:${(nb / bmax) * 100}%"></div>
+      <div class="tick" style="left:${((nb + g1) / bmax) * 100}%"></div><div class="tick" style="left:${((nb + g2) / bmax) * 100}%"></div>
+      <span class="tick-lbl" style="left:${((nb + (g1 + g2) / 2) / bmax) * 100}%">${nb + g1}–${nb + g2}</span></div>
+    <dl class="kv"><dt><i class="sw base"></i>исходная база</dt><dd>${nb}</dd><dt><i class="sw"></i>новые объекты с выбранным кадром</dt><dd>${S.covered}</dd>${S.coveredDup ? `<dt>из них совпадают с объектами базы</dt><dd>${S.coveredDup}</dd>` : ""}</dl>
+  </section>
   <section class="card"><h2>Объекты на замену: ${S.repl}</h2>
     <dl class="kv"><dt>выбран кадр</dt><dd>${S.replYes}</dd><dt>под вопросом</dt><dd>${S.replQ}</dd><dt>есть кадры без решения</dt><dd>${S.replOpen}</dd><dt>кандидатов здесь нет</dt><dd>${S.replNone}</dd><dt>из них с запасом Megalith на втором компьютере</dt><dd>${S.replReserve}</dd></dl>
   </section>
@@ -690,17 +724,23 @@ function renderStats() {
     <dl class="kv"><dt>всего на сайте</dt><dd>${S.frames}</dd><dt>ещё не просмотрены</dt><dd>${S.unseen}</dd><dt>мои решения: берём</dt><dd>${S.mineN["да"]}</dd><dt>под вопросом</dt><dd>${S.mineN["?"]}</dd><dt>нет</dt><dd>${S.mineN["нет"]}</dd><dt>изменены настройки</dt><dd>${S.edited}</dd><dt>найдено в поиске</dt><dd>${S.found}</dd>${others}</dl>
   </section>
   <section class="card"><h2>Источники: выбрано из всех</h2>${bars(bySrc, maxSrc)}</section>
-  <section class="card"><h2>Форматы выбранных кадров</h2>${bars(byFmt.map(([k, n]) => [k, n, n]), Math.max(1, ...byFmt.map(r => r[1])))}
-    <h2 style="margin-top:18px">Доля белого у выбранных</h2>
-    <div class="hist">${bins.map((n, i) => `<div style="height:${(n / hb) * 100}%" title="${(30 + i * 2.5).toFixed(1)}–${(32.5 + i * 2.5).toFixed(1)} %: ${n}"></div>`).join("")}</div>
-    <div class="hist-x"><span>30 %</span><span>50 %</span><span>70 %</span></div>
-    <p class="hint">По кадрам со стандартными настройками (σ = 2, порог Оцу): ${wh.length}.</p></section>
-  <section class="card"><h2>Пересечения с исходной базой</h2>
-    <dl class="kv">${CAT.objects.filter(o => o.dup).map(o => `<dt>${esc(o.name)}</dt><dd>«${esc(o.dup)}»</dd>`).join("") || "<dt>нет</dt><dd></dd>"}</dl>
-    <p class="hint" style="margin-top:10px">Исходная база: ${CAT.base.length} стимулов.</p></section>
+  <section class="card"><h2>Форматы: исходная база и выбранные кадры</h2>${legend}
+    <div class="bars">${byFmt.map(([k, a, b]) => `<div class="bar cmp"><span>${esc(k)}</span><span class="pair"><span class="tr"><i class="base" style="width:${share(a, nb)}%"></i></span><span class="tr"><i class="ok" style="width:${share(b, yesF.length)}%"></i></span></span><span class="v">${a}<br>${b}</span></div>`).join("")}</div>
+    <h2 style="margin-top:18px">Доля белого</h2>
+    <p class="hist-lbl"><i class="sw base"></i>исходная база, медиана ${pct(median(bw))}</p>${hist(hB, "base", bw)}
+    <p class="hist-lbl"><i class="sw"></i>выбранные кадры, медиана ${pct(median(wh))}</p>${hist(hN, "ok", wh)}
+    <div class="hist-x"><span>${Math.round(lo * 100)} %</span><span>${Math.round(((lo + hi) / 2) * 100)} %</span><span>${Math.round(hi * 100)} %</span></div>
+    <p class="hint">Длина полосы и высота столбца показывают долю внутри своей группы. Доля белого у выбранных посчитана по кадрам со стандартными настройками (σ = 2, порог Оцу): ${wh.length}.</p></section>
+  <section class="card wide"><h2>Исходная база: ${nb} стимулов</h2>
+    <p class="hint" style="margin-bottom:10px">Частота основного называния получена при апробации называний на оригинальных изображениях; точность распознавания и доля Ага-переживаний взяты из эксперимента 1 (20&nbsp;с). Чтобы отсортировать, нажмите на заголовок столбца.</p>
+    <div class="tbl-wrap" id="base-tbl">${baseTable()}</div></section>
   <section class="card wide"><h2>По объектам</h2><div class="tbl-wrap"><table class="t">
     <thead><tr><th>Объект</th><th>Ранее</th><th>Кадров</th><th>Без решения</th><th>Берём</th><th>?</th><th>Нет</th><th>Запас</th><th>Исходная база</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
-  $("stat").querySelectorAll("button[data-o]").forEach(b => b.onclick = () => { UI.obj = b.dataset.o; saveUI(); location.hash = "#otbor"; });
+  $("stat").onclick = e => {
+    const b = e.target.closest("button[data-o]"), h = e.target.closest("th[data-bs]");
+    if (b) { UI.obj = b.dataset.o; saveUI(); location.hash = "#otbor"; }
+    if (h) { BSORT = { k: h.dataset.bs, d: BSORT.k === h.dataset.bs ? -BSORT.d : 1 }; $("base-tbl").innerHTML = baseTable(); }
+  };
 }
 
 // ---------- Excel ----------
@@ -781,6 +821,8 @@ async function exportExcel(what, withImg) {
   ws3.getRow(1).font = { bold: true };
   [["Новых объектов с выбранным кадром", S.covered], ["из них взяты на обсуждении", S.coveredPrev], ["из них добавлены сейчас", S.coveredNew],
    ["Объектов только под вопросом", S.qOnly], [`Цель`, `${CAT.goal[0]}–${CAT.goal[1]}`],
+   ["Стимулов в исходной базе", CAT.base.length], ["База после добора: всего объектов", CAT.base.length + S.covered],
+   ["Цель для всей базы", `${CAT.base.length + CAT.goal[0]}–${CAT.base.length + CAT.goal[1]}`],
    ["Объектов на замену", S.repl], ["на замену: выбран кадр", S.replYes], ["на замену: под вопросом", S.replQ],
    ["на замену: есть кадры без решения", S.replOpen], ["на замену: кандидатов на сайте нет", S.replNone],
    ["Кадров на сайте", S.frames], ["Ещё не просмотрены", S.unseen], ["Мои решения: берём", S.mineN["да"]], ["Мои решения: под вопросом", S.mineN["?"]],
