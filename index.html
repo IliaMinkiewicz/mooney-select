@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="css/style.css?v=4">
+<link rel="stylesheet" href="css/style.css?v=6">
 </head>
 <body>
 <header class="top">
@@ -41,12 +41,14 @@
           <button type="button" data-v="взят" aria-pressed="false">взяты</button>
           <button type="button" data-v="отклонён" aria-pressed="false">отклонены</button>
           <button type="button" data-v="новый" aria-pressed="false">новые</button>
+          <button type="button" data-v="кандидат" aria-pressed="false">пул</button>
         </div>
         <label class="row-l"><span>Порядок</span>
           <select id="o-sort">
             <option value="name">по алфавиту</option>
             <option value="open">сначала без выбранного кадра</option>
             <option value="n">по числу кандидатов</option>
+            <option value="tier">по приоритету пула</option>
           </select>
         </label>
       </div>
@@ -77,6 +79,16 @@
             <option value="?">под вопросом</option>
             <option value="нет">нет</option>
             <option value="diff">расходится с другим файлом</option>
+          </select>
+        </label>
+        <label class="row-l"><span>Прогноз</span>
+          <select id="f-rk">
+            <option value="all">все кадры</option>
+            <option value="ok">без риска</option>
+            <option value="s">риск: узнают сразу</option>
+            <option value="n">трудные</option>
+            <option value="norm">есть нормы узнавания</option>
+            <option value="pool">только пул</option>
           </select>
         </label>
         <div class="seg" id="show" role="group" aria-label="Показ">
@@ -233,6 +245,6 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js" defer></script>
 <script src="js/mooney.js?v=4"></script>
-<script src="js/app.js?v=4"></script>
+<script src="js/app.js?v=6"></script>
 </body>
 </html>

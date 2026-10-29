@@ -88,6 +88,7 @@ main { min-height: 70vh; }
 .objs button[aria-current="true"] .n { color: var(--bg); opacity: .75; }
 .objs .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .objs .n { font: 11.5px var(--mono); color: var(--muted); white-space: nowrap; }
+.objs .tier { font-style: normal; display: inline-block; min-width: 14px; padding: 0 3px; border-radius: 4px; background: var(--prev-bg); color: var(--prev); text-align: center; }
 .dot { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--muted); }
 .dot.ok { background: var(--yes); border-color: var(--yes); }
 .dot.q { background: var(--q); border-color: var(--q); }

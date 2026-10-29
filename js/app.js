@@ -12,6 +12,9 @@ const ru = (a, b) => a.localeCompare(b, "ru");
 const DL = { "да": "берём", "?": "под вопросом", "нет": "нет" };
 const DL_BACK = { "берём": "да", "под вопросом": "?", "нет": "нет", "да": "да", "?": "?" };
 const PREV_CLS = { "взят": "ok", "на замену": "q", "отклонён": "no", "не выбран": "", "новый": "prev" };
+const RISK = { s: ["no", "риск: узнают сразу", "Модель предсказывает, что кадр узнают без подсказки: у похожих кадров THINGS-Mooney доля узнавания до подсказки высокая"],
+               n: ["q", "трудный", "Модель предсказывает низкое узнавание и до, и после подсказки. В исходной базе такие стимулы решают реже (точность 38 % против 52 %), а Ага-переживаний при решении у них не меньше (57 % против 55 %)"] };
+const NSRC = { T: "THINGS-Mooney", V: "Van de Cruys, претест" };
 const FORMATS = ["350x250", "250x350", "350x350"];
 const SOURCES = ["Open Images", "Megalith", "THINGS-Mooney", "Pexels", "Pixabay", "источник не указан", "Van de Cruys", "Wikimedia Commons", "Openverse"];
 
@@ -19,7 +22,7 @@ let CAT = null;
 const OBJ = new Map(), FRK = new Map();
 let FR = [];
 let DEC = LS.get("ms.dec", {}), FOUND = LS.get("ms.found", []), OTHER = LS.get("ms.other", {}), NEWOBJ = LS.get("ms.newobj", []);
-const UI = Object.assign({ obj: "", st: "all", sort: "name", src: [], prev: "all", mine: "all", show: "m", ts: 210, q: "" }, LS.get("ms.ui", {}));
+const UI = Object.assign({ obj: "", st: "all", sort: "name", src: [], prev: "all", mine: "all", rk: "all", show: "m", ts: 210, q: "" }, LS.get("ms.ui", {}));
 const LOCAL = new Map();
 let VISIBLE = [];
 
@@ -49,6 +52,19 @@ function localFor(f, kind) {
   const stems = kind === "g" ? [s + "_gray", s + "gs"] : kind === "m" ? [s + "_mooney", s + "tt"] : [];
   for (const x of stems) if (LOCAL.has(x)) return LOCAL.get(x);
   return null;
+}
+// нормы узнавания (THINGS-Mooney: доля узнавших до и после показа серого; Van de Cruys: доля узнавших в претесте, 9 оценщиков)
+function normText(f) {
+  const n = f.nr; if (!n) return "";
+  return (n.s === "T" ? `узнали до ${pct(n.pre)} · после ${pct(n.post)}` : `узнали в претесте ${pct(n.pre)}`) + (n.ru ? ` · опрос: ${n.ru}` : "");
+}
+function normTitle(f) {
+  const n = f.nr; if (!n) return "";
+  const t = [NSRC[n.s] + ":"];
+  if (n.s === "T") t.push(`до подсказки ${pct(n.pre)}, на сером ${pct(n.gr)}, после подсказки ${pct(n.post)}; точное английское название после подсказки ${pct(n.va)}`);
+  else t.push(`узнали ${pct(n.pre)}` + (n.acc != null ? `; онлайн-опыт: точность ${pct(n.acc)}, Ага ${n.aha}` : ""));
+  if (n.ru) t.push(`; опрос 2022 по серой версии: ${n.ru}`);
+  return t.join(" ");
 }
 const grayURL = f => f.g ? `img/g/${f.k}.jpg` : f.found ? f.url : localFor(f, "g");
 const mooneyURL = f => f.m ? `img/m/${f.k}.png` : localFor(f, "m");
@@ -249,14 +265,15 @@ function renderObjs() {
   let list = CAT.objects.map(o => ({ o, c: objCounts(o) }))
     .filter(({ o }) => (UI.st === "all" || o.st === UI.st) && (!q || o.name.toLowerCase().includes(q) || o.en.toLowerCase().includes(q)));
   if (UI.sort === "n") list.sort((a, b) => b.c.n - a.c.n || ru(a.o.name, b.o.name));
+  else if (UI.sort === "tier") list.sort((a, b) => (a.o.tier || 9) - (b.o.tier || 9) || (b.o.sc ?? -9) - (a.o.sc ?? -9) || ru(a.o.name, b.o.name));
   else if (UI.sort === "open") list.sort((a, b) => (a.c.yes > 0) - (b.c.yes > 0) || ru(a.o.name, b.o.name));
   else list.sort((a, b) => ru(a.o.name, b.o.name));
   const total = FR.length;
   const html = [`<li><button type="button" data-o="" aria-current="${UI.obj === ""}"><span></span><span class="nm all">Все объекты</span><span class="n">${total}</span></button></li>`];
   for (const { o, c } of list) {
     const dot = c.yes ? "ok" : o.st === "отклонён" ? "rej" : c.q ? "q" : o.st === "на замену" || o.fresh ? "open" : "";
-    html.push(`<li><button type="button" data-o="${esc(o.id)}" aria-current="${UI.obj === o.id}" title="${esc(o.name)}: кандидатов ${c.n}, берём ${c.yes}${c.q ? ", под вопросом " + c.q : ""}">` +
-      `<span class="dot ${dot}"></span><span class="nm">${esc(o.name)}</span><span class="n">${c.n}${c.yes ? " · ✓" + c.yes : ""}</span></button></li>`);
+    html.push(`<li><button type="button" data-o="${esc(o.id)}" aria-current="${UI.obj === o.id}" title="${esc(o.name)}: кандидатов ${c.n}, берём ${c.yes}${c.q ? ", под вопросом " + c.q : ""}${o.tier ? ", приоритет пула " + o.tier : ""}">` +
+      `<span class="dot ${dot}"></span><span class="nm">${esc(o.name)}</span><span class="n">${o.tier ? `<i class="tier">${o.tier}</i> ` : ""}${c.n}${c.yes ? " · ✓" + c.yes : ""}</span></button></li>`);
   }
   $("objs").innerHTML = html.join("");
 }
@@ -275,6 +292,11 @@ function passes(f) {
   if (pv === "g-no" && f.gd !== "отклонить") return false;
   if (pv === "new" && !unseen(f)) return false;
   if (!["all", "g-yes", "g-no", "new"].includes(pv) && f.prev?.s !== pv) return false;
+  const rk = UI.rk;
+  if (rk === "ok" && (f.rk || f.fc == null)) return false;
+  if ((rk === "s" || rk === "n") && f.rk !== rk) return false;
+  if (rk === "norm" && !f.nr) return false;
+  if (rk === "pool" && !f.pool) return false;
   const m = UI.mine, d = mine(f);
   if (m === "none" && d) return false;
   if (["да", "?", "нет"].includes(m) && d !== m) return false;
@@ -286,7 +308,7 @@ function rank(f) {
   return f.prev?.s === "взят" ? 0 : e === "да" ? 1 : e === "?" ? 2 : e === "нет" ? 5 : unseen(f) ? 3 : 4;
 }
 function sortFrames(a, b) {
-  return (UI.obj ? 0 : ru(OBJ.get(a.o).name, OBJ.get(b.o).name)) || rank(a) - rank(b) || (b.of ?? 0) - (a.of ?? 0) || (a.k < b.k ? -1 : 1);
+  return (UI.obj ? 0 : ru(OBJ.get(a.o).name, OBJ.get(b.o).name)) || rank(a) - rank(b) || (b.sc ?? -9) - (a.sc ?? -9) || (b.of ?? 0) - (a.of ?? 0) || (a.k < b.k ? -1 : 1);
 }
 function renderHead() {
   const el = $("obj-head");
@@ -295,8 +317,10 @@ function renderHead() {
     return;
   }
   const o = OBJ.get(UI.obj), c = objCounts(o);
-  const st = { "взят": ["ok", "взят на обсуждении"], "на замену": ["q", "на замену"], "отклонён": ["no", "отклонён на обсуждении"], "новый": ["prev", "новый объект"] }[o.st] || ["", o.st];
+  const st = { "взят": ["ok", "взят на обсуждении"], "на замену": ["q", "на замену"], "отклонён": ["no", "отклонён на обсуждении"], "новый": ["prev", "новый объект"],
+               "кандидат": ["prev", `новый объект из пула · приоритет ${o.tier}`] }[o.st] || ["", o.st];
   const notes = [`<span class="pill ${st[0]}">${st[1]}</span>`];
+  if (o.near) notes.push(`<span class="pill q" title="Название может совпасть с ответом на другой стимул">близко к «${esc(o.near)}»</span>`);
   notes.push(c.yes ? `<span class="pill ok">берём: ${c.yes}</span>` : `<span class="pill">кадр не выбран</span>`);
   if (o.zam) notes.push(`<span class="pill q" title="Помета обсуждения и замечания">помета: ${esc(o.zam)}</span>`);
   if (o.dup) notes.push(`<span class="pill no">в исходной базе есть «${esc(o.dup)}»</span>`);
@@ -321,7 +345,10 @@ function tileHTML(f) {
   if (f.gd) marks.push(`<span class="pill ${f.gd === "взять" ? "prev" : ""}" title="${esc(f.gc)}">галерея: ${f.gd === "взять" ? "взять" : "нет"}</span>`);
   if (/^порция 7/.test(f.why || "")) marks.push(`<span class="pill">порция 7</span>`);
   if (f.found) marks.push(`<span class="pill prev">найдено</span>`);
-  if (unseen(f) && !f.prev) marks.push(`<span class="pill">новый</span>`);
+  if (f.pool) marks.push(`<span class="pill prev" title="Кадр из набора с нормами, добавлен в пул 29.10.2026">пул · ${f.pool}</span>`);
+  else if (unseen(f) && !f.prev) marks.push(`<span class="pill">новый</span>`);
+  if (f.nr) marks.push(`<span class="pill" title="${esc(normTitle(f))}">${esc(normText(f))}</span>`);
+  if (f.rk && RISK[f.rk]) marks.push(`<span class="pill ${RISK[f.rk][0]}" title="${esc(RISK[f.rk][2])}">${RISK[f.rk][1]}</span>`);
   for (const [who, o] of Object.entries(OTHER)) if (o[f.k]?.d) marks.push(`<span class="pill ${o[f.k].d !== e ? "no" : ""}" title="${esc(o[f.k].c || "")}">${esc(who)}: ${DL[o[f.k].d]}</span>`);
   const ed = edited(f), two = show === "mg";
   let pics;
@@ -333,7 +360,8 @@ function tileHTML(f) {
     const g = grayURL(f), m = mooneyURL(f);
     pics = (show !== "m" && g ? `<img loading="lazy" decoding="async" alt="" src="${esc(g)}">` : "") + (show !== "g" && m ? `<img loading="lazy" decoding="async" alt="" src="${esc(m)}">` : "");
   }
-  const meta = [f.src, f.fmt?.replace("x", "×"), f.wh != null && !ed ? "белого " + pct(f.wh) : "", f.of ? "объект " + pct(f.of) : ""].filter(Boolean);
+  const meta = [f.src, f.fmt?.replace("x", "×"), f.wh != null && !ed ? "белого " + pct(f.wh) : "", f.of ? "объект " + pct(f.of) : "",
+    f.fc != null && !ed ? "прогноз узнавания " + pct(f.fc) : ""].filter(Boolean);
   const cls = d === "да" || (!d && e === "да") ? "d-yes" : d === "?" ? "d-q" : d === "нет" ? "d-no" : "";
   return `<figure class="tile ${cls}" data-k="${esc(f.k)}">` +
     `<button type="button" class="pics ${two ? "two" : ""}" data-k="${esc(f.k)}" data-show="${show}" data-render="${pics.startsWith('<span class="ph">…') ? 1 : 0}" aria-label="Открыть ${esc(OBJ.get(f.o).name)} в редакторе">${pics}${ed ? '<span class="edited">изменён</span>' : ""}</button>` +
@@ -348,7 +376,7 @@ function renderGrid() {
   document.querySelectorAll("#st-chips button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === UI.st)));
   document.querySelectorAll("#show button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === UI.show)));
   document.querySelectorAll("#src-chips button").forEach(b => b.setAttribute("aria-pressed", String(UI.src.includes(b.dataset.v))));
-  $("f-prev").value = UI.prev; $("f-mine").value = UI.mine; $("o-sort").value = UI.sort; $("tile-size").value = UI.ts; $("q-obj").value = UI.q;
+  $("f-prev").value = UI.prev; $("f-mine").value = UI.mine; $("f-rk").value = UI.rk; $("o-sort").value = UI.sort; $("tile-size").value = UI.ts; $("q-obj").value = UI.q;
   document.querySelectorAll(".grid").forEach(g => g.style.setProperty("--ts", UI.ts + "px"));
   VISIBLE = FR.filter(passes).sort(sortFrames);
   const parts = [];
@@ -513,6 +541,10 @@ function renderInfo() {
   if (f.prev) add("Ранее", `№${f.prev.n} · ${esc(f.prev.s)} · ${esc(f.prev.who)}` + [f.prev.d && "обсуждение: " + f.prev.d, f.prev.r, f.prev.c].filter(Boolean).map(s => `<br><span class="hint">${esc(s)}</span>`).join(""));
   if (f.gd) add("Галерея", esc(f.gd) + (f.gc ? ` · ${esc(f.gc)}` : ""));
   add("Отбор", esc(f.why));
+  if (f.nr) add("Нормы", esc(normTitle(f)));
+  if (f.fc != null) add("Прогноз", `узнают до подсказки ≈ ${pct(f.fc)}, сложится после подсказки ≈ ${pct(f.fp)}` +
+    (f.rk ? ` · <span class="pill ${RISK[f.rk][0]}">${RISK[f.rk][1]}</span>` : "") +
+    `<br><span class="hint">Модель по признакам CLIP, обучена на нормах THINGS-Mooney; для настроек по умолчанию</span>`);
   for (const [who, x] of Object.entries(OTHER)) if (x[f.k]?.d) add(esc(who), esc(DL[x[f.k].d]) + (x[f.k].c ? ` · ${esc(x[f.k].c)}` : ""));
   if (f.found) add("", `<button type="button" class="btn ghost" id="ed-unfound">Убрать из найденных</button>`);
   $("ed-info").innerHTML = rows.join("");
@@ -535,7 +567,7 @@ const SR = { prov: "wm", q: "", page: 0, items: [] };
 function fillSearchObjects() {
   const cur = $("s-obj").value;
   $("s-obj").innerHTML = `<option value="__new">+ новый объект…</option>` + CAT.objects.slice().sort((a, b) => ru(a.name, b.name))
-    .map(o => `<option value="${esc(o.id)}">${esc(o.name)}${o.st === "на замену" ? " · на замену" : o.fresh ? " · новый" : ""}</option>`).join("");
+    .map(o => `<option value="${esc(o.id)}">${esc(o.name)}${o.st === "на замену" ? " · на замену" : o.fresh ? " · новый" : o.st === "кандидат" ? " · пул" : ""}</option>`).join("");
   if (cur && OBJ.has(cur)) $("s-obj").value = cur;
 }
 function updateAddLabels() {
@@ -656,6 +688,7 @@ function computeStats() {
     replOpen: repl.filter(x => !x.c.yes && !x.c.q && x.c.open).length,
     replNone: repl.filter(x => !x.c.yes && !x.c.q && !x.c.open).length,
     replReserve: repl.filter(x => !x.c.yes && !x.c.q && !x.c.open && x.o.res).length,
+    pool: objs.filter(x => x.o.st === "кандидат"),
     frames: all, unseen: FR.filter(unseen).length, mineN, edited: FR.filter(edited).length, found: FR.filter(f => f.found).length,
   };
 }
@@ -671,9 +704,9 @@ function baseTable() {
     return (typeof x === "string" ? ru(x, y) : x - y) * BSORT.d || ru(a.name, b.name);
   });
   const th = (k, t, num) => `<th data-bs="${k}"${num ? ' class="num"' : ""} aria-sort="${BSORT.k !== k ? "none" : BSORT.d > 0 ? "ascending" : "descending"}">${t}${BSORT.k !== k ? "" : BSORT.d > 0 ? " ▲" : " ▼"}</th>`;
-  return `<table class="t"><thead><tr><th>Mooney</th>${th("id", "Стимул")}${th("name", "Название")}${th("nf", "Частота называния", 1)}${th("acc", "Точность, эксп. 1", 1)}${th("aha", "Ага-переживания, эксп. 1", 1)}${th("fmt", "Формат")}${th("wh", "Доля белого", 1)}${th("near", "Близкие новые объекты")}</tr></thead><tbody>${list.map(b => `<tr>
+  return `<table class="t"><thead><tr><th>Mooney</th>${th("id", "Стимул")}${th("name", "Название")}${th("nf", "Частота называния", 1)}${th("acc", "Точность, эксп. 1", 1)}${th("aha", "Ага-переживания, эксп. 1", 1)}${th("fc", "Прогноз узнавания", 1)}${th("fmt", "Формат")}${th("wh", "Доля белого", 1)}${th("near", "Близкие новые объекты")}</tr></thead><tbody>${list.map(b => `<tr>
     <td><a href="img/b/${esc(b.id)}.jpg" target="_blank" rel="noopener" title="Открыть в полном размере"><img class="bthumb" loading="lazy" decoding="async" alt="${esc(b.name)}" src="img/b/${esc(b.id)}.jpg"></a></td>
-    <td class="mono">${esc(b.id)}</td><td>${esc(b.name)}</td><td class="num">${pct(b.nf)}</td><td class="num">${pct(b.acc)}</td><td class="num">${pct(b.aha)}</td>
+    <td class="mono">${esc(b.id)}</td><td>${esc(b.name)}</td><td class="num">${pct(b.nf)}</td><td class="num">${pct(b.acc)}</td><td class="num">${pct(b.aha)}</td><td class="num">${pct(b.fc)}</td>
     <td class="mono">${esc(b.fmt.replace("x", "×"))}</td><td class="num">${pct(b.wh)}</td>
     <td>${near(b).map(o => `<button type="button" data-o="${esc(o.id)}">${esc(o.name)}</button> <span class="hint">${esc(o.st)}</span>`).join(", ")}</td></tr>`).join("")}</tbody></table>`;
 }
@@ -717,6 +750,10 @@ function renderStats() {
       <span class="tick-lbl" style="left:${((nb + (g1 + g2) / 2) / bmax) * 100}%">${nb + g1}–${nb + g2}</span></div>
     <dl class="kv"><dt><i class="sw base"></i>исходная база</dt><dd>${nb}</dd><dt><i class="sw"></i>новые объекты с выбранным кадром</dt><dd>${S.covered}</dd>${S.coveredDup ? `<dt>из них совпадают с объектами базы</dt><dd>${S.coveredDup}</dd>` : ""}</dl>
   </section>
+  ${S.pool.length ? `<section class="card"><h2>Пул из наборов с нормами: ${S.pool.length} объектов</h2>
+    <dl class="kv">${[1, 2].map(t => `<dt>приоритет ${t}</dt><dd>${S.pool.filter(x => x.o.tier === t).length}, выбран кадр: ${S.pool.filter(x => x.o.tier === t && x.c.yes).length}</dd>`).join("")}
+    <dt>кадров пула у объектов на замену и новых объектов коллеги</dt><dd>${FR.filter(f => f.pool && OBJ.get(f.o).st !== "кандидат").length}</dd></dl>
+    <p class="hint">Кадры THINGS-Mooney и Van de Cruys, у которых доля узнавания до подсказки близка к исходной базе, и до двух кадров запаса Megalith на объект с прогнозом в той же полосе. Приоритет 1: знакомый объект с одним основным названием; 2: ожидается разброс названий или объект менее знаком.</p></section>` : ""}
   <section class="card"><h2>Объекты на замену: ${S.repl}</h2>
     <dl class="kv"><dt>выбран кадр</dt><dd>${S.replYes}</dd><dt>под вопросом</dt><dd>${S.replQ}</dd><dt>есть кадры без решения</dt><dd>${S.replOpen}</dd><dt>кандидатов здесь нет</dt><dd>${S.replNone}</dd><dt>из них с запасом Megalith на втором компьютере</dt><dd>${S.replReserve}</dd></dl>
   </section>
@@ -773,6 +810,7 @@ async function exportExcel(what, withImg) {
     ["Источник", "src", 15], ["Лицензия", "lic", 13], ["Автор", "au", 20], ["Страница", "pg", 34],
     ["Формат", "fmt", 9], ["σ", "sg", 5], ["σ, px", "sp", 7], ["Порог", "thr", 13], ["Доля белого", "wh", 8], ["Крупных пятен", "pt", 8],
     ["Рамка: x0 y0 x1 y1", "b", 18], ["Поворот", "rot", 8], ["Отражение", "fl", 9], ["Инверсия", "inv", 9], ["Контраст", "con", 8], ["Гамма", "gam", 7], ["Убрать пятна < px", "spk", 9],
+    ["Нормы узнавания", "nr", 30], ["Прогноз: узнают до подсказки", "fc", 10], ["Прогноз: сложится после подсказки", "fp", 10], ["Риск", "rk", 16], ["Пул", "pl", 6],
     ["Настройки изменены", "ed", 9], ["Ключ", "k", 30], ["Параметры (JSON)", "pj", 40], ["Отбирал", "who", 12],
   ].map(([header, key, width]) => ({ header, key, width }));
   const hr = ws.getRow(1); hr.font = { bold: true }; hr.alignment = { vertical: "middle", wrapText: true }; hr.height = 32;
@@ -792,6 +830,7 @@ async function exportExcel(what, withImg) {
       fmt: r ? `${r.w}x${r.h}` : f.fmt, sg: p.sigma, sp: r ? +r.sigmaPx.toFixed(3) : "", thr: thrTxt,
       wh: r ? +r.white.toFixed(3) : "", pt: r ? r.patches : "", b: p.b ? p.b.join(" ") : "", rot: p.rot || 0,
       fl: p.flip ? "да" : "", inv: p.inv ? "да" : "", con: p.con, gam: p.gam, spk: p.speck || "",
+      nr: normTitle(f), fc: f.fc ?? "", fp: f.fp ?? "", rk: f.rk ? RISK[f.rk][1] : "", pl: f.pool || "",
       ed: edited(f) ? "да" : "", k: f.k, pj: JSON.stringify(pj), who,
     });
     row.alignment = { vertical: "middle", wrapText: true };
@@ -897,6 +936,7 @@ function bindUI() {
   };
   $("f-prev").onchange = () => { UI.prev = $("f-prev").value; saveUI(); renderGrid(); };
   $("f-mine").onchange = () => { UI.mine = $("f-mine").value; saveUI(); renderGrid(); };
+  $("f-rk").onchange = () => { UI.rk = $("f-rk").value; saveUI(); renderGrid(); };
   $("show").onclick = e => { const b = e.target.closest("button"); if (!b) return; UI.show = b.dataset.v; saveUI(); renderGrid(); };
   $("tile-size").oninput = () => { UI.ts = +$("tile-size").value; saveUI(); document.querySelectorAll(".grid").forEach(g => g.style.setProperty("--ts", UI.ts + "px")); };
   $("grid").onclick = e => {
